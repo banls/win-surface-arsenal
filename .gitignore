@@ -1,0 +1,8 @@
+﻿# 依赖/临时
+*.log
+*.tmp
+*.bak
+assets/*.exe
+assets/*.dll
+*.pcap
+*.hive
